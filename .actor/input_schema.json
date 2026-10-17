@@ -1,0 +1,17 @@
+{
+    "$schema": "https://apify.com/schemas/v1/input.ide.json",
+    "title": "call4me MCP server",
+    "description": "Optional. Every user brings their own call4me API key; you can also connect it from your MCP client with the call4me_set_api_key tool.",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "call4meApiKey": {
+            "title": "call4me API key",
+            "type": "string",
+            "description": "Your call4me API key (starts with cb_live_). Sign in at https://call4.me/account and create one. Calls are billed per minute to your prepaid call4me balance.",
+            "editor": "textfield",
+            "isSecret": true
+        }
+    },
+    "required": []
+}

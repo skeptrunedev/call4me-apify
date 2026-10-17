@@ -1,0 +1,7 @@
+{
+    "call-placed": {
+        "eventTitle": "Phone call placed",
+        "eventDescription": "Charged once for each phone call call4me actually places or schedules. Refused calls, following a call, and every other tool are free. Call minutes are billed separately by call4me from your prepaid call4me balance.",
+        "eventPriceUsd": 0.01
+    }
+}

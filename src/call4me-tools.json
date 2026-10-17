@@ -1,0 +1,1382 @@
+{
+  "instructions": "call4me places real phone calls for the user: doctor/dentist/vet appointments, restaurant bookings, car service and dealership questions, home services, salons, and questions for any business.\n\nDuring setup, call call4me_get_balance and show the user their actual call4me numbers. Suggest saving them as a contact named call4me. These are separate from the user's personal phone in call4me_get_profile: call4me may ring that personal phone when a business needs them to verify their account, or when they ask to join a call. Explain that they answer and press 1 to join, and press * or hang up to hand the call back. If phone_number is null and numbers is empty, explain that the free US number is assigned on the first call; never invent a number or buy an extra number for setup.\n\nThe caller can only say what you give it, so everything is collected BEFORE dialing:\n1. Ask what the user wants done first. Do not collect a personal profile during setup. For a specific call, call4me_get_profile shows what is already saved; collect only what that call needs, as listed in step 2, and explain why any sensitive detail is needed. Giving a detail for one call does not mean saving it: offer call4me_save_profile for details the user wants reused and save only with their agreement. Skip anything the user declines.\n2. For each call: pick the category and call call4me_get_requirements(category). Ask the user for every required field that isn't already known (one message, not one question at a time), plus the per-call details (reason, dates and times that work, party size...).\n3. Find the right number (search the web if needed; check it is the right location).\n4. call4me_place_call with the category and details. If it answers \"Not calling yet\", ask the user exactly what it lists and try again. Show its calling_number so the user knows which call4me number may ring them; suggest saving it if this is their first call or a different number than before. It is the call4me number, not number (the business's number).\n5. Poll call4me_get_call with wait_seconds until finished. If it shows an open question, the business is waiting on the line: answer right away with call4me_answer_question.\n6. Tell the user the outcome in a line or two.\n\nTo put the user on a call themselves: pass connect_when to call4me_place_call (e.g. \"as soon as a person picks up\", so the user does not have to listen to a long hold; hold time is still billed, at half the call rate), or call call4me_connect_me mid-call. Give the user a heads up before placing a call that may ring them, and before call4me_connect_me. Tell them why and use the actual call's calling_number from call4me_get_call; for a new call, use the selected owned number when known and confirm it from the place_call result. If the first number has not been assigned yet, explain that upfront and show it as soon as place_call returns. Their phone rings and they join the call by pressing 1; the caller goes quiet, and takes over again when they press * or hang up. To have them listen in without taking over, pass listen_in: true to call4me_place_call (they hear the call from the moment the business answers) or mode: \"listen\" to call4me_connect_me: nobody on the call hears them, the caller keeps working, and they press 1 anytime to take over. To end a call early, use call4me_hang_up.\n\nTo make a call later (the business is closed now, or the user wants it at a set time), gather everything the same way and use call4me_schedule_call with call_at in the business's hours. It is checked now and dialed then, when nobody may be following it, so give it every fact and all the flexibility it needs. If an unexpected question cannot be answered, the caller acknowledges the missing detail and continues with permitted alternatives instead of waiting for a live reply. Tell the user when it will dial. call4me_list_calls shows what is scheduled, call4me_get_call with its sched_ id shows how it went, and call4me_cancel_scheduled_call calls it off.\n\nCalls go out from the account's own numbers: its free US number, plus any it bought (call4me_list_numbers, call4me_buy_number). Businesses in the US, Canada and Europe can always be called (Europe from a European number when the account holds one, else from its US number), and UAE and Japanese businesses too, from the account's US number (the business sees a US caller ID); anywhere else, once the account holds a number in that country, and the call goes out from it. Check call4me_list_numbers for current calling rates.\n\nThe user can also call from their own phone number: verify it once with call4me_verify_number (the carrier texts it a code; ask the user for it), then pass it as from to call4me_place_call. Only when the user asks for it; it is never picked on its own. Businesses in its country see the user's number, and callbacks ring the user's phone instead of call4me; call4me still rings the user from the call's calling_number when they join.\n\nEvery call leaves the number the business saw as the callback, unless callback_number names another one (the user's mobile, an assistant's line): then callbacks ring that phone and call4me can't pick them up. If a call ends in voicemail or \"we'll call you back\", call4me remembers the task for 14 days: when the business calls a call4me number back, it answers and finishes the task within the same facts and flexibility, and the result shows on the original call (call4me_get_call lists its callbacks) and in call4me_list_calls.\n\nThe caller sounds like a normal person calling for the user. It keeps turns short and does not read the booking back at the end; the recap comes back to you.\nOnly call businesses and services the user wants to reach, never personal numbers they don't expect a call from.",
+  "tools": [
+    {
+      "name": "call4me_get_recordings",
+      "title": "Get call recordings",
+      "description": "Get existing recordings of a finished call owned by the signed in account. Returns fresh download links when available. An empty list means no recording is available yet. Links may expire; request this again for fresh links. Only share the links with the user.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "The call id returned when placing or listing calls."
+          }
+        },
+        "required": [
+          "call_id"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Get call recordings"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "recordings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "download_urls": {
+                  "type": "object",
+                  "properties": {
+                    "mp3": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "wav": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "duration_millis": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "started_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ended_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "download_urls",
+                "duration_millis",
+                "started_at",
+                "ended_at"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "recordings",
+          "message"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    {
+      "name": "call4me_place_call",
+      "title": "Place a phone call",
+      "description": "Call a business for the user (US, Canada, Europe, the UAE and Japan, or any other country the account holds a number in, prices vary by destination; see call4me_list_numbers for current calling rates) and have a natural conversation to get something done (book, reschedule, cancel, ask). Refuses to dial until the category's required information is known, and says exactly what to ask the user. Returns right away with a call id; follow it with call4me_get_call. Credits for the maximum length are held up front; billed from pickup by a person or automated system, including phone menus, hold time, and conversation at the same rate, rounded up to the minute; unanswered calls are free.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "to": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40,
+            "description": "the number to call, e.g. \"+14155550123\", \"(415) 555-0123\", or abroad with its country code, e.g. \"+31 20 123 4567\""
+          },
+          "business": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "who you are calling, as a person would say it: \"Nopa\", \"Dr. Chen's office\", \"Toyota of Berkeley service\""
+          },
+          "goal": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 1500,
+            "description": "what the call should achieve, in plain words: \"Book a table for 4 tomorrow (Sat Oct 3) around 7pm under Khami.\""
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "medical",
+              "dental",
+              "restaurant",
+              "veterinary",
+              "auto_service",
+              "auto_sales",
+              "home_service",
+              "personal_care",
+              "internet_new_service",
+              "internet_existing_account",
+              "flight_change",
+              "general"
+            ],
+            "description": "the kind of call; decides what must be known first (see call4me_get_requirements)"
+          },
+          "details": {
+            "description": "answers to the category's fields by key, e.g. {\"reason\":\"annual physical\",\"patient_status\":\"existing\",\"availability\":\"weekday mornings next week\"}. Profile fields (name, DOB, phone, insurance...) are filled from the saved profile only when the call is for the profile's owner; for anyone else (on_behalf_of is another name) pass all of their details here, since the owner's are never used.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "on_behalf_of": {
+            "description": "who the call is for, as the caller should say it (default: the profile's full_name). The caller calls FOR this person; it never claims to be them.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "facts": {
+            "description": "anything else the caller may share beyond the category's fields, one per line",
+            "type": "string",
+            "maxLength": 3000
+          },
+          "flexibility": {
+            "description": "what the caller may accept without asking: \"any time 6:30-8pm\", \"a different day this week is fine\", \"up to $300\". Anything outside this becomes a question to you.",
+            "type": "string",
+            "maxLength": 1500
+          },
+          "timezone": {
+            "description": "IANA time zone of the business, e.g. \"America/Los_Angeles\", so \"tomorrow\" is unambiguous",
+            "type": "string",
+            "maxLength": 60
+          },
+          "connect_when": {
+            "description": "when to ring the user and patch them into the call without being asked, e.g. \"as soon as a person picks up\" (skip the hold) or \"if they need to speak to me\". Rings their own phone: details.phone when given, else the one in their profile; a call with neither is refused. They hand the call back to the caller by pressing * or hanging up.",
+            "type": "string",
+            "maxLength": 300
+          },
+          "listen_in": {
+            "description": "ring the user as soon as the business answers so they can listen in: nobody on the call hears them and the caller keeps working. They press 1 anytime to take over, or hang up to stop listening. Rings their own phone: details.phone when given, else the one in their profile; a call with neither is refused.",
+            "type": "boolean"
+          },
+          "max_minutes": {
+            "description": "optional cap on the answered call, including phone menus. Defaults to 30 minutes, or less if the available balance cannot cover it. Only credits for that cap are held. A call still on hold when it reaches the cap keeps waiting: call4me holds 15 more minutes of credits at a time while the balance covers them, up to 4 hours. Set a shorter cap to leave more credits free for other calls",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "voice": {
+            "description": "caller voice (default marin); hear each at https://call4.me/voices",
+            "type": "string",
+            "enum": [
+              "marin",
+              "cedar",
+              "gleam",
+              "meridian",
+              "vesper",
+              "willow"
+            ]
+          },
+          "caller_name": {
+            "description": "a first name the caller introduces itself with, e.g. \"Jordan\", for this call only (default: the profile's assistant_name, else none: just \"<user>'s assistant\"). Put the caller's name and company here, never in the goal: the caller's identity comes only from these fields.",
+            "type": "string",
+            "maxLength": 30
+          },
+          "calling_as": {
+            "description": "a company the caller calls from, e.g. \"Acme\": it introduces itself as \"Jordan from Acme\" (or \"calling from Acme\" without caller_name) instead of \"<user>'s assistant\", and callbacks to the number it called from answer as that company. Calling for several companies: pass the company on every call and give each one its own number (from), so callbacks reach the right identity.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "callback_number": {
+            "description": "the number the caller gives for call-backs and on voicemail, when the user wants callbacks to ring a phone of theirs (e.g. \"(415) 555-0123\"). Default: the number the call comes from, so a call4me number answers the callback and finishes the task. A callback to callback_number goes straight to that phone instead, and call4me never hears it. Phone numbers in details or facts are only for finding or verifying an account, never given as the callback.",
+            "type": "string",
+            "maxLength": 40
+          },
+          "from": {
+            "description": "which of the account's numbers to call from (default: a call4me number in the callee's country). May be one of the user's own verified numbers (call4me_verify_number), for businesses in its country: they see it and call back the user directly",
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "to",
+          "business",
+          "goal",
+          "category"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Place a phone call"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_schedule_call",
+      "title": "Schedule a phone call",
+      "description": "Place a call later instead of now: when the business is closed, or the user wants it made at a set time (\"call Canby Utility Monday morning to register the meters\"). Takes everything call4me_place_call takes, plus call_at, and checks it the same way now, so \"Not calling yet\" comes back while the user is here. At call_at, call4me places it exactly as call4me_place_call would: credits are held then, not now. Nobody may be following the call when it runs, so give the caller every fact (details, facts) and everything it may accept (flexibility) up front; a question nobody answers ends with the caller saying the user will call back. Returns a scheduled id (sched_...): call4me_get_call with it shows whether it dialed and then the call itself, and call4me_cancel_scheduled_call cancels it before it dials. A call that needs an account PIN can't be scheduled, since call4me never stores one.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "to": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40,
+            "description": "the number to call, e.g. \"+14155550123\", \"(415) 555-0123\", or abroad with its country code, e.g. \"+31 20 123 4567\""
+          },
+          "business": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "who you are calling, as a person would say it: \"Nopa\", \"Dr. Chen's office\", \"Toyota of Berkeley service\""
+          },
+          "goal": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 1500,
+            "description": "what the call should achieve, in plain words: \"Book a table for 4 tomorrow (Sat Oct 3) around 7pm under Khami.\""
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "medical",
+              "dental",
+              "restaurant",
+              "veterinary",
+              "auto_service",
+              "auto_sales",
+              "home_service",
+              "personal_care",
+              "internet_new_service",
+              "internet_existing_account",
+              "flight_change",
+              "general"
+            ],
+            "description": "the kind of call; decides what must be known first (see call4me_get_requirements)"
+          },
+          "details": {
+            "description": "answers to the category's fields by key, e.g. {\"reason\":\"annual physical\",\"patient_status\":\"existing\",\"availability\":\"weekday mornings next week\"}. Profile fields (name, DOB, phone, insurance...) are filled from the saved profile only when the call is for the profile's owner; for anyone else (on_behalf_of is another name) pass all of their details here, since the owner's are never used.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "on_behalf_of": {
+            "description": "who the call is for, as the caller should say it (default: the profile's full_name). The caller calls FOR this person; it never claims to be them.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "facts": {
+            "description": "anything else the caller may share beyond the category's fields, one per line",
+            "type": "string",
+            "maxLength": 3000
+          },
+          "flexibility": {
+            "description": "what the caller may accept without asking: \"any time 6:30-8pm\", \"a different day this week is fine\", \"up to $300\". Anything outside this becomes a question to you.",
+            "type": "string",
+            "maxLength": 1500
+          },
+          "timezone": {
+            "description": "IANA time zone of the business, e.g. \"America/Los_Angeles\", so \"tomorrow\" is unambiguous",
+            "type": "string",
+            "maxLength": 60
+          },
+          "connect_when": {
+            "description": "when to ring the user and patch them into the call without being asked, e.g. \"as soon as a person picks up\" (skip the hold) or \"if they need to speak to me\". Rings their own phone: details.phone when given, else the one in their profile; a call with neither is refused. They hand the call back to the caller by pressing * or hanging up.",
+            "type": "string",
+            "maxLength": 300
+          },
+          "listen_in": {
+            "description": "ring the user as soon as the business answers so they can listen in: nobody on the call hears them and the caller keeps working. They press 1 anytime to take over, or hang up to stop listening. Rings their own phone: details.phone when given, else the one in their profile; a call with neither is refused.",
+            "type": "boolean"
+          },
+          "max_minutes": {
+            "description": "optional cap on the answered call, including phone menus. Defaults to 30 minutes, or less if the available balance cannot cover it. Only credits for that cap are held. A call still on hold when it reaches the cap keeps waiting: call4me holds 15 more minutes of credits at a time while the balance covers them, up to 4 hours. Set a shorter cap to leave more credits free for other calls",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "voice": {
+            "description": "caller voice (default marin); hear each at https://call4.me/voices",
+            "type": "string",
+            "enum": [
+              "marin",
+              "cedar",
+              "gleam",
+              "meridian",
+              "vesper",
+              "willow"
+            ]
+          },
+          "caller_name": {
+            "description": "a first name the caller introduces itself with, e.g. \"Jordan\", for this call only (default: the profile's assistant_name, else none: just \"<user>'s assistant\"). Put the caller's name and company here, never in the goal: the caller's identity comes only from these fields.",
+            "type": "string",
+            "maxLength": 30
+          },
+          "calling_as": {
+            "description": "a company the caller calls from, e.g. \"Acme\": it introduces itself as \"Jordan from Acme\" (or \"calling from Acme\" without caller_name) instead of \"<user>'s assistant\", and callbacks to the number it called from answer as that company. Calling for several companies: pass the company on every call and give each one its own number (from), so callbacks reach the right identity.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "callback_number": {
+            "description": "the number the caller gives for call-backs and on voicemail, when the user wants callbacks to ring a phone of theirs (e.g. \"(415) 555-0123\"). Default: the number the call comes from, so a call4me number answers the callback and finishes the task. A callback to callback_number goes straight to that phone instead, and call4me never hears it. Phone numbers in details or facts are only for finding or verifying an account, never given as the callback.",
+            "type": "string",
+            "maxLength": 40
+          },
+          "from": {
+            "description": "which of the account's numbers to call from (default: a call4me number in the callee's country). May be one of the user's own verified numbers (call4me_verify_number), for businesses in its country: they see it and call back the user directly",
+            "type": "string",
+            "maxLength": 40
+          },
+          "call_at": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 40,
+            "description": "when to dial: the business's local time like \"2026-10-05T09:15\" together with timezone, or an ISO time with its offset like \"2026-10-05T09:15:00-07:00\". Pick a time the business is open and answering (a little after opening beats right at it). Up to 60 days ahead; dials within a minute of it."
+          }
+        },
+        "required": [
+          "to",
+          "business",
+          "goal",
+          "category",
+          "call_at"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Schedule a phone call"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_cancel_scheduled_call",
+      "title": "Cancel a scheduled call",
+      "description": "Cancel a call made with call4me_schedule_call before it dials. Once it has dialed, it is a live call: end it with call4me_hang_up.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "scheduled_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "the id from call4me_schedule_call, e.g. \"sched_ab12...\""
+          }
+        },
+        "required": [
+          "scheduled_id"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Cancel a scheduled call"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_get_call",
+      "title": "Check on a call",
+      "description": "Status, open questions, live transcript, and (when finished) the outcome of a call. With wait_seconds it waits for something to change (a new question, the call ending) before returning, so poll with wait_seconds: 30. Takes a scheduled id (sched_...) too: before it dials, when it will; after, the call it became.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "the call id from call4me_place_call (\"call_ab12...\"), or the scheduled id from call4me_schedule_call (\"sched_ab12...\")"
+          },
+          "wait_seconds": {
+            "default": 0,
+            "description": "wait up to this long for the call to finish or ask a question",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "call_id"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Check on a call"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_connect_me",
+      "title": "Patch the user into a live call",
+      "description": "Ring the user now and patch them into a call in progress, so they talk to the business directly while the caller goes quiet. Before calling this tool, give the user a heads up with the reason and calling_number from call4me_get_call. Rings their own phone (details.phone from placing the call, else the one in their profile) unless phone is given; they join by pressing 1 when they pick up (a voicemail never gets patched in). When they press * or hang up, the caller takes the call back and carries on with the task. With mode \"listen\" they only listen in: nobody on the call hears them, the caller keeps working, and they press 1 anytime to take over or hang up to stop listening.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "the call id from call4me_place_call, e.g. \"call_ab12...\""
+          },
+          "phone": {
+            "description": "a different number to ring, e.g. \"(415) 555-0123\"",
+            "type": "string",
+            "maxLength": 40
+          },
+          "mode": {
+            "default": "join",
+            "description": "\"join\" (default): they take the call over by pressing 1. \"listen\": they listen in while the caller keeps working, and can press 1 anytime to take over",
+            "type": "string",
+            "enum": [
+              "join",
+              "listen"
+            ]
+          }
+        },
+        "required": [
+          "call_id"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Patch the user into a live call"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_hang_up",
+      "title": "Hang up a live call",
+      "description": "End a call in progress now, e.g. when it is going nowhere or the user changed their mind. Talk time so far is billed as usual; call4me_get_call shows the final state.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "the call id from call4me_place_call, e.g. \"call_ab12...\""
+          }
+        },
+        "required": [
+          "call_id"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Hang up a live call"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_answer_question",
+      "title": "Answer the caller's question",
+      "description": "Answer a question the caller asked mid-call (listed in open_questions). The caller relays it on the line within a second or two. Answer in a few plain words.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "the call id from call4me_place_call, e.g. \"call_ab12...\""
+          },
+          "question_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "e.g. \"Yes, 8:15 works.\" or \"The reservation is under Khami.\""
+          }
+        },
+        "required": [
+          "call_id",
+          "question_id",
+          "answer"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Answer the caller's question"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_list_calls",
+      "title": "List recent calls",
+      "description": "Recent calls on this account, newest first, including callbacks the account's number answered (direction \"inbound\"): a callback about an unfinished task (callback_for) tried to finish it, anything else took a message. Calls scheduled for later (call4me_schedule_call) that have not dialed yet come first.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "limit": {
+            "default": 10,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "List recent calls"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_get_balance",
+      "title": "Balance and phone numbers",
+      "description": "The prepaid balance, the per-minute price, and the account's own call4me phone numbers. During setup, show these numbers and suggest saving them as a contact named call4me. Call4me can ring the user's personal phone for account verification or to join a call, from that call's calling_number. The free US number is assigned on the first call; a null phone_number is normal before then. Callbacks to the calling number finish the unfinished task or take a message.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Balance and phone numbers"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_get_requirements",
+      "title": "What a call needs",
+      "description": "The information a kind of call needs before dialing, and which of it the saved profile already has. Without a category, lists the categories.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "medical",
+              "dental",
+              "restaurant",
+              "veterinary",
+              "auto_service",
+              "auto_sales",
+              "home_service",
+              "personal_care",
+              "internet_new_service",
+              "internet_existing_account",
+              "flight_change",
+              "general"
+            ]
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "What a call needs"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_get_profile",
+      "title": "Saved caller profile",
+      "description": "Saved details available to reuse for relevant calls (name, DOB, phone, address, insurance, car). An incomplete profile is fine. Only request missing details that a specific call needs.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Saved caller profile"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_save_profile",
+      "title": "Save caller profile",
+      "description": "Save facts that are the same on every call, so they never have to be asked again. Merges into what is saved; an empty string removes a field. Only save details the user agreed to keep for future calls; use place_call details for information supplied for one call. The user can see, edit and delete everything saved on their call4me account page.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "full_name": {
+            "description": "full name",
+            "type": "string",
+            "maxLength": 500
+          },
+          "name_pronunciation": {
+            "description": "name pronunciation",
+            "type": "string",
+            "maxLength": 500
+          },
+          "assistant_name": {
+            "description": "assistant name",
+            "type": "string",
+            "maxLength": 500
+          },
+          "date_of_birth": {
+            "description": "date of birth",
+            "type": "string",
+            "maxLength": 500
+          },
+          "phone": {
+            "description": "phone number",
+            "type": "string",
+            "maxLength": 500
+          },
+          "email": {
+            "description": "email",
+            "type": "string",
+            "maxLength": 500
+          },
+          "address": {
+            "description": "home address",
+            "type": "string",
+            "maxLength": 500
+          },
+          "insurance_carrier": {
+            "description": "health insurance carrier",
+            "type": "string",
+            "maxLength": 500
+          },
+          "insurance_member_id": {
+            "description": "health insurance member ID",
+            "type": "string",
+            "maxLength": 500
+          },
+          "insurance_group_number": {
+            "description": "health insurance group number",
+            "type": "string",
+            "maxLength": 500
+          },
+          "dental_insurance_carrier": {
+            "description": "dental insurance carrier",
+            "type": "string",
+            "maxLength": 500
+          },
+          "dental_insurance_member_id": {
+            "description": "dental insurance member ID",
+            "type": "string",
+            "maxLength": 500
+          },
+          "vehicle": {
+            "description": "vehicle (year, make, model, mileage)",
+            "type": "string",
+            "maxLength": 500
+          },
+          "vin": {
+            "description": "VIN",
+            "type": "string",
+            "maxLength": 500
+          },
+          "frequent_flyer_numbers": {
+            "description": "frequent flyer numbers",
+            "type": "string",
+            "maxLength": 500
+          },
+          "known_traveler_number": {
+            "description": "Known Traveler Number (TSA PreCheck / Global Entry)",
+            "type": "string",
+            "maxLength": 500
+          },
+          "redress_number": {
+            "description": "TSA Redress number",
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Save caller profile"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_add_funds",
+      "title": "Add funds",
+      "description": "A Stripe checkout link that adds credits now and reloads the same amount every month (replacing any current monthly reload). Give the link to the user to open; nothing is charged until they pay.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "amount_dollars": {
+            "default": 10,
+            "type": "number",
+            "minimum": 10,
+            "maximum": 500
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "title": "Add funds"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_list_numbers",
+      "title": "Phone numbers",
+      "description": "The account's phone numbers, and the countries more can be bought in with today's prices. Calls go out from a number in the callee's country when the account holds one. US, Canadian and European businesses can always be called (Europe from a European number if the account has one, else from its US number), and UAE and Japanese businesses too, from the account's US number (the business sees a US caller ID); elsewhere, a number in the country is what lets the account call there. Numbers cost exactly what the carrier charges: the upfront cost plus the first month when bought, then the monthly cost every 30 days, taken from the balance. own_numbers are the user's own phone numbers verified with call4me_verify_number: free, and used only when call4me_place_call names one in from.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "title": "Phone numbers"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "numbers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string",
+                  "description": "formatted for people"
+                },
+                "e164": {
+                  "type": "string"
+                },
+                "country": {
+                  "type": "string",
+                  "description": "ISO 3166-1 alpha-2"
+                },
+                "country_name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "local, mobile, national or toll_free"
+                },
+                "included": {
+                  "type": "boolean",
+                  "description": "the free number that came with the account"
+                },
+                "monthly": {
+                  "type": "string"
+                },
+                "monthly_cents": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "renews": {
+                  "description": "date the next monthly charge is due; null for the free number",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "overdue": {
+                  "type": "boolean",
+                  "description": "the last renewal failed for lack of credits"
+                },
+                "release_after": {
+                  "description": "when an overdue number is released unless credits are added",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "number",
+                "e164",
+                "country",
+                "country_name",
+                "type",
+                "included",
+                "monthly",
+                "monthly_cents",
+                "renews",
+                "overdue",
+                "release_after"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "pending_numbers": {
+            "description": "numbers paid for and waiting on the carrier's approval (numbers abroad are reviewed first, minutes to a few days). They activate by themselves and cannot place calls until they move to numbers. Omitted when there are none",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string",
+                  "description": "formatted for people"
+                },
+                "e164": {
+                  "type": "string"
+                },
+                "country": {
+                  "type": "string",
+                  "description": "ISO 3166-1 alpha-2"
+                },
+                "country_name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "local, mobile, national or toll_free"
+                },
+                "monthly": {
+                  "type": "string"
+                },
+                "monthly_cents": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "ordered": {
+                  "type": "string",
+                  "description": "date it was bought; it activates once the carrier approves it, and its first month starts then"
+                }
+              },
+              "required": [
+                "number",
+                "e164",
+                "country",
+                "country_name",
+                "type",
+                "monthly",
+                "monthly_cents",
+                "ordered"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "own_numbers": {
+            "description": "the user's own phone numbers, verified to call from: calls go out from one only when place_call names it in from. Omitted when the account has none",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string",
+                  "description": "formatted for people"
+                },
+                "e164": {
+                  "type": "string"
+                },
+                "country": {
+                  "type": "string",
+                  "description": "ISO 3166-1 alpha-2"
+                },
+                "country_name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "verified"
+                  ],
+                  "description": "pending: the code was sent and has not come back yet"
+                },
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "sms",
+                    "call"
+                  ],
+                  "description": "how the code was sent"
+                },
+                "verified_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "number",
+                "e164",
+                "country",
+                "country_name",
+                "status",
+                "method",
+                "verified_at"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "countries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "country": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "available": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "description": "why a number cannot be bought there right now",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "upfront_cents": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "monthly_cents": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "price": {
+                  "description": "taken from the balance when buying: upfront cost plus the first month",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "monthly": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "country",
+                "name",
+                "type",
+                "available",
+                "reason",
+                "upfront_cents",
+                "monthly_cents",
+                "price",
+                "monthly"
+              ],
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "numbers",
+          "countries"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    {
+      "name": "call4me_buy_number",
+      "title": "Buy a phone number",
+      "description": "Buy another phone number, in the US or abroad, paid from the balance at the carrier's own price (see call4me_list_numbers for prices). It renews from the balance every 30 days; if the balance can't cover a renewal the number is released after 7 days. Only buy when the user asks for a number or needs one to call a country. A number abroad is reviewed by the carrier after it's paid for, from minutes to a few days: it comes back pending, activates by itself, and can't place calls until then.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2}$",
+            "description": "ISO country code from the countries list, e.g. \"NL\", \"GB\", \"CA\", \"US\""
+          },
+          "area_code": {
+            "description": "preferred area code (national destination code), e.g. \"415\" or \"20\"; the nearest available is used otherwise",
+            "type": "string",
+            "pattern": "^\\d{2,5}$"
+          }
+        },
+        "required": [
+          "country"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Buy a phone number"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_release_number",
+      "title": "Release a phone number",
+      "description": "Give up one of the account's bought numbers. Its monthly charge stops; what was already paid is not refunded, and the number cannot be gotten back. The free number that came with the account cannot be released. Only do this when the user asks.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "number": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40,
+            "description": "one of the account's numbers, e.g. \"+31612345678\""
+          }
+        },
+        "required": [
+          "number"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Release a phone number"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_verify_number",
+      "title": "Call from your own number",
+      "description": "Let calls show the user's own phone number instead of a call4me number. Without code: the carrier texts the number a code (or with method \"call\", calls it and reads the code out). Ask the user for the code they got, then call again with the same number and code. Free for the user; at most 5 codes a day, 5 tries per code. Once verified, call4me_place_call uses the number only when its from names it, and only to call businesses in the number's own country (any US or Canadian number for a +1 number). Businesses then see the user's number and call back their phone directly, so call4me cannot finish a task on a callback. Only verify a number the user asked to call from.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "number": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40,
+            "description": "the user's own phone number, e.g. \"+14155550123\" or \"(415) 555-0123\""
+          },
+          "method": {
+            "default": "sms",
+            "description": "how to send the code: a text, or a call that reads it out (for landlines)",
+            "type": "string",
+            "enum": [
+              "sms",
+              "call"
+            ]
+          },
+          "extension": {
+            "description": "keys the verification call dials once answered, to get past a phone menu to an extension; w waits half a second, W one second. method \"call\" only",
+            "type": "string",
+            "pattern": "^[0-9A-D*#wW]{1,50}$"
+          },
+          "code": {
+            "description": "the code the user received; leave out to send one",
+            "type": "string",
+            "pattern": "^[0-9A-Za-z]{3,12}$"
+          }
+        },
+        "required": [
+          "number"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Call from your own number"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "call4me_remove_own_number",
+      "title": "Stop calling from your own number",
+      "description": "Stop calling from one of the user's own numbers, or drop one still waiting on its code. Verifying it again needs a new code. Only do this when the user asks.",
+      "inputSchema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "number": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 40,
+            "description": "one of the user's own numbers on the account, e.g. \"+14155550123\""
+          }
+        },
+        "required": [
+          "number"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "title": "Stop calling from your own number"
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "calls"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

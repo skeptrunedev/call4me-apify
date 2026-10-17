@@ -1,0 +1,17 @@
+{
+    "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+    "actorSpecification": 1,
+    "name": "call4me",
+    "title": "call4me: AI phone calls MCP server",
+    "description": "Let your AI agent place real phone calls: book appointments and tables, ask businesses questions, and follow each call live. MCP server for call4me; bring your own call4me API key, calls bill your prepaid call4me balance.",
+    "version": "1.0",
+    "buildTag": "latest",
+    "usesStandbyMode": true,
+    "meta": {
+        "templateId": "ts-mcp-proxy",
+        "generatedBy": "Claude Code with Claude Opus 5.5"
+    },
+    "input": "./input_schema.json",
+    "dockerfile": "../Dockerfile",
+    "webServerMcpPath": "/mcp"
+}
